@@ -1,0 +1,44 @@
+# PROJECT CONTEXT: TRIP PLANNER (QUẢN LÝ LỊCH TRÌNH CHUYẾN ĐI)
+
+## 📌 Tổng Quan Dự Án
+
+- **Tên dự án:** Trip Planner
+- **Mục tiêu:** Web App quản lý lịch trình chuyến đi chơi, phân công thành viên, tính toán chi tiêu chia tiền (Split Bill), tự động cập nhật trạng thái sự kiện Realtime và thống kê.
+- **Quy mô:** Bài tập nhóm 2 người.
+
+## 🛠 Tech Stack
+
+- **Frontend:** ReactJS (Vite) + Tailwind CSS v4
+- **State Management:** React Context API (`AuthContext`, `TripContext`)
+- **UI & Icons:** Lucide React (`lucide-react`)
+- **Helpers:** DayJS (`dayjs`)
+- **Database/Backend:** Supabase / Firebase (hoặc Mock Data trong `src/data/mockData.js`)
+
+## 📐 Schema Dữ Liệu Cốt Lõi
+
+- **User:** `{ id, name, role ('LEAD' | 'MEMBER'), description }`
+- **Event:** `{ id, title, description, startTime, endTime, location, category, status ('UPCOMING' | 'IN_PROGRESS' | 'COMPLETED' | 'DELAYED' | 'CANCELLED' | 'PENDING'), isApproved, cost, payerId, assignedUserIds, createdBy }`
+
+## ⚙️ Quy Tắc Nghiệp Vụ (Business Logic)
+
+1. **Luồng Duyệt (Approval Flow):**
+   - Event do `LEAD` tạo -> `isApproved = true`, status = `UPCOMING`.
+   - Event do `MEMBER` tạo -> `isApproved = false`, status = `PENDING` (chờ Lead duyệt).
+   - Member chỉ được phép sửa/xóa event do chính mình tạo KHI event đó CHƯA được duyệt.
+2. **Form Validation:**
+   - `title` là bắt buộc.
+   - `endTime` phải sau `startTime`.
+   - Không cho phép 2 event trùng đè hoàn toàn khung giờ.
+3. **Realtime Logic:**
+   - Tự động chuyển status: `UPCOMING` -> `IN_PROGRESS` (khi tới giờ bắt đầu) -> `COMPLETED` (khi qua giờ kết thúc).
+   - Bỏ qua check realtime cho event ở trạng thái `DELAYED` (Tạm hoãn). Event `CANCELLED` (Hủy) vẫn hiển thị nhưng tĩnh.
+4. **Logic Chia Tiền (Split Bill):**
+   - Chi phí event chia đều cho những người trong `assignedUserIds`.
+   - `Balance (Dư/Nợ) = [Tổng tiền đã trả (Payer)] - [Tổng tiền phải trả (Share)]`.
+
+## 🎨 Quy Chuẩn Code (Coding Style)
+
+- Sử dụng Functional Components & React Hooks.
+- Đặt tên file component: PascalCase (ví dụ: `EventCard.jsx`, `EventsPage.jsx`).
+- Style 100% bằng utility class của Tailwind CSS.
+- Giữ code sạch, viết chú thích (comment) rõ ràng bằng tiếng Việt.

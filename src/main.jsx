@@ -4,12 +4,15 @@ import './index.css'
 import App from './App.jsx'
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { TripProvider } from './context/TripContext'; // Import TripProvider
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <TripProvider> {/* Wrap App with TripProvider */}
+          <App />
+        </TripProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

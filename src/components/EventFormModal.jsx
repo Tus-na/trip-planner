@@ -4,7 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+import utc from 'dayjs/plugin/utc'; // Import UTC plugin
 import { X, Loader2 } from 'lucide-react';
+
+dayjs.extend(utc); // Extend dayjs with UTC plugin
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useTrip } from '../context/TripContext';
@@ -78,8 +81,9 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
       const rawStartTime = eventToEdit.start_time;
       const rawEndTime = eventToEdit.end_time;
 
-      const initialStartTime = dayjs(rawStartTime).isValid() ? dayjs(rawStartTime) : dayjs();
-      const initialEndTime = dayjs(rawEndTime).isValid() ? dayjs(rawEndTime) : initialStartTime.add(1, 'hour');
+      // Parse UTC time from DB, then convert to local time for datetime-local input
+      const initialStartTime = dayjs.utc(rawStartTime).local();
+      let initialEndTime = dayjs.utc(rawEndTime).local();
 
       // Ensure end_time is always after start_time
       if (initialEndTime.isSameOrBefore(initialStartTime)) {
@@ -103,8 +107,8 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
   }, [eventToEdit, reset]);
 
   const checkTimeOverlap = async (newStartTime, newEndTime, currentEventId = null) => {
-    const newStart = dayjs(newStartTime);
-    const newEnd = dayjs(newEndTime);
+    const newStart = dayjs(newStartTime).local().utc(); // Parse new event times as local, then convert to UTC for comparison
+    const newEnd = dayjs(newEndTime).local().utc();     // Parse new event times as local, then convert to UTC for comparison
 
     const { data: allEvents, error } = await supabase
       .from('events')
@@ -120,8 +124,8 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
         continue; // Skip the event being edited
       }
 
-      const existingStart = dayjs(event.start_time);
-      const existingEnd = dayjs(event.end_time);
+      const existingStart = dayjs.utc(event.start_time); // Parse existing event times as UTC
+      const existingEnd = dayjs.utc(event.end_time);     // Parse existing event times as UTC
 
       // Ensure existingStart and existingEnd are valid Day.js objects
       if (!existingStart.isValid() || !existingEnd.isValid()) {
@@ -150,8 +154,8 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
       const eventData = {
         title: formData.title,
         description: formData.description,
-        start_time: formData.start_time,
-        end_time: formData.end_time,
+        start_time: dayjs(formData.start_time).local().utc().toISOString(), // Explicitly parse as local, then convert to UTC
+        end_time: dayjs(formData.end_time).local().utc().toISOString(),     // Explicitly parse as local, then convert to UTC
         location: formData.location,
         category: formData.category,
         assigned_members: formData.assigned_members,

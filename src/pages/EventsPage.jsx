@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BellRing, User } from 'lucide-react'; // Added BellRing and User icon
+import { Plus, BellRing, User } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import dayjs from 'dayjs';
 import EventCard from '../components/EventCard';
 import EventFormModal from '../components/EventFormModal';
 import PendingEventsModal from '../components/PendingEventsModal'; // Import PendingEventsModal
@@ -7,6 +9,28 @@ import MemberManagementModal from '../components/MemberManagementModal'; // Impo
 import { useAuth } from '../context/AuthContext';
 import { useTrip } from '../context/TripContext';
 import { supabase } from '../lib/supabaseClient';
+
+// Helper object to map English status to Vietnamese and vice-versa
+const STATUS_MAP = {
+  UPCOMING: 'Sắp tới',
+  IN_PROGRESS: 'Đang diễn ra',
+  COMPLETED: 'Đã xong',
+  PENDING: 'Chờ duyệt',
+  APPROVED: 'Đã duyệt',
+  REJECTED: 'Từ chối',
+  DELAYED: 'Tạm hoãn',
+  CANCELLED: 'Hủy',
+};
+
+const mapEnglishToVietnamese = (englishStatus) => STATUS_MAP[englishStatus] || englishStatus;
+const mapVietnameseToEnglish = (vietnameseStatus) => {
+  for (const [english, vietnamese] of Object.entries(STATUS_MAP)) {
+    if (vietnamese === vietnameseStatus) {
+      return english;
+    }
+  }
+  return vietnameseStatus; // Return original if not found
+};
 
 const EventsPage = () => {
   const { currentUser, loading: authLoading } = useAuth(); // Use currentUser and authLoading
@@ -29,37 +53,116 @@ const EventsPage = () => {
           profiles!events_created_by_fkey(id, full_name, role),
           payer:profiles!events_payer_id_fkey(id, full_name)
         `)
-        .eq('approval_status', 'APPROVED') // Only fetch approved events for initial display
-        .order('start_time', { ascending: true });
+        .eq('approval_status', 'APPROVED')
+        .order('order_index', { ascending: true });
 
-      if (error) throw error;
-      setTripEvents(data);
-    } catch (err) {
-      console.error("Error fetching events:", err.message);
+          if (error) throw error;
+          // Map status to Vietnamese for display
+          setTripEvents(data.map(event => ({
+            ...event,
+            status: mapEnglishToVietnamese(event.status)
+          })));
+          // Update statuses immediately after fetching events
+          updateStatuses();
+        } catch (err) {
+          console.error("Error fetching events:", err.message);
       setError("Không thể tải danh sách sự kiện.");
     } finally {
       setLoading(false);
     }
   };
 
+  const updateStatuses = async () => {
+    const now = dayjs();
+    let hasChanges = false;
+    const eventsToUpdateInDb = [];
+
+    const updatedEvents = tripEvents.map(event => {
+      // Get the English status from the currently displayed Vietnamese status
+      const currentEnglishStatus = mapVietnameseToEnglish(event.status);
+
+      // Skip automatic status updates for DELAYED or CANCELLED events
+      if (currentEnglishStatus === 'DELAYED' || currentEnglishStatus === 'CANCELLED') {
+        return event;
+      }
+
+      // Convert event times to local for comparison with local 'now'
+      const eventStartTimeLocal = dayjs.utc(event.start_time).local();
+      const eventEndTimeLocal = dayjs.utc(event.end_time).local();
+
+      let newEnglishStatus = currentEnglishStatus; // Default to current status
+      if (now.isBefore(eventStartTimeLocal)) {
+        newEnglishStatus = 'UPCOMING';
+      } else if (now.isAfter(eventStartTimeLocal) && now.isBefore(eventEndTimeLocal)) {
+        newEnglishStatus = 'IN_PROGRESS';
+      } else if (now.isAfter(eventEndTimeLocal)) {
+        newEnglishStatus = 'COMPLETED';
+      }
+
+      if (currentEnglishStatus !== newEnglishStatus) {
+        hasChanges = true;
+        eventsToUpdateInDb.push({ id: event.id, status: newEnglishStatus });
+        return { ...event, status: mapEnglishToVietnamese(newEnglishStatus) }; // Update local state with Vietnamese
+      }
+      return event;
+    });
+
+    if (hasChanges) {
+      setTripEvents(updatedEvents); // Update local state immediately
+
+      // Persist status changes to the database
+      for (const update of eventsToUpdateInDb) {
+        const { error } = await supabase
+          .from('events')
+          .update({ status: update.status })
+          .eq('id', update.id);
+
+        if (error) {
+          console.error(`Error updating status for event ${update.id}:`, error.message);
+        }
+      }
+    }
+  };
+
   useEffect(() => {
     fetchEvents();
+    // Realtime status update engine
+    const interval = setInterval(async () => { // Make the callback async
+      updateStatuses();
+    }, 60000);
 
-    // Realtime subscription (basic example, needs refinement)
+    return () => clearInterval(interval);
+  }, []); // Empty dependency array to run once on mount and cleanup on unmount
+
+  useEffect(() => {
     const eventSubscription = supabase
       .channel('public:events')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
-        console.log('Change received!', payload);
-        // Re-fetch or update state based on payload
-        fetchEvents(); // Simple re-fetch for now
-        fetchPendingEventsCount(); // Also update pending count on change
+        // Directly update tripEvents based on the payload to avoid flickering
+        setTripEvents(prevEvents => {
+          if (payload.eventType === 'INSERT') {
+            if (payload.new.approval_status === 'APPROVED') {
+              return [...prevEvents, { ...payload.new, status: mapEnglishToVietnamese(payload.new.status) }];
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            if (payload.new.approval_status === 'APPROVED') {
+              return prevEvents.map(event => event.id === payload.new.id ? { ...payload.new, status: mapEnglishToVietnamese(payload.new.status) } : event);
+            } else {
+              return prevEvents.filter(event => event.id !== payload.old.id);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            return prevEvents.filter(event => event.id !== payload.old.id);
+          }
+          return prevEvents;
+        });
+        fetchPendingEventsCount(); // Always update pending count
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(eventSubscription);
     };
-  }, [setTripEvents]);
+  }, []);
 
   const handleAddEvent = () => {
     setEditingEvent(null);
@@ -86,6 +189,33 @@ const EventsPage = () => {
     } catch (err) {
       console.error("Error deleting event:", err.message);
       alert("Không thể xóa sự kiện: " + err.message);
+    }
+  };
+
+  const onDragEnd = async (result) => {
+    if (!result.destination) return;
+    const items = Array.from(tripEvents);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 1, reorderedItem);
+
+    setTripEvents(items);
+
+    // Update order_index in DB
+    const updates = items.map((event, index) => ({
+      id: event.id,
+      order_index: index
+    }));
+
+    try {
+      for (const update of updates) {
+        await supabase
+          .from('events')
+          .update({ order_index: update.order_index })
+          .eq('id', update.id);
+      }
+    } catch (err) {
+      console.error("Error updating order:", err);
+      fetchEvents(); // Revert on error
     }
   };
 
@@ -167,17 +297,29 @@ const EventsPage = () => {
           Chưa có sự kiện nào được duyệt. Hãy thêm một sự kiện mới!
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tripEvents.map(event => (
-            <EventCard
-              key={event.id}
-              event={event}
-              onEdit={handleEditEvent}
-              onDelete={handleDeleteEvent}
-              canModify={canEditOrDelete(event)}
-            />
-          ))}
-        </div>
+        <DragDropContext onDragEnd={onDragEnd}>
+          <Droppable droppableId="events">
+            {(provided) => (
+              <div {...provided.droppableProps} ref={provided.innerRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {tripEvents.map((event, index) => (
+                  <Draggable key={event.id} draggableId={event.id.toString()} index={index}>
+                    {(provided) => (
+                      <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                        <EventCard
+                          event={event}
+                          onEdit={handleEditEvent}
+                          onDelete={handleDeleteEvent}
+                          canModify={canEditOrDelete(event)}
+                        />
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
       )}
 
       {isEventFormModalOpen && (

@@ -1,6 +1,9 @@
 import React from 'react';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc'; // Import UTC plugin
 import { MapPin, Calendar, Tag, DollarSign, Users, Edit, Trash2 } from 'lucide-react';
+
+dayjs.extend(utc); // Extend dayjs with UTC plugin
 
 const EventCard = ({ event, onEdit, onDelete, canModify }) => {
   const getStatusBadgeClass = (status) => {
@@ -37,7 +40,7 @@ const EventCard = ({ event, onEdit, onDelete, canModify }) => {
           <div className="flex items-center">
             <Calendar className="w-4 h-4 mr-2 text-gray-500" />
             <span>
-              {dayjs(event.start_time).format('HH:mm DD/MM/YYYY')} - {dayjs(event.end_time).format('HH:mm DD/MM/YYYY')}
+              {dayjs.utc(event.start_time).local().format('HH:mm DD/MM/YYYY')} - {dayjs.utc(event.end_time).local().format('HH:mm DD/MM/YYYY')}
             </span>
           </div>
           {event.location && (

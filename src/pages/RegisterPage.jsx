@@ -16,7 +16,7 @@ const RegisterPage = () => {
     e.preventDefault();
     setError('');
     try {
-      await register({ email, password, name, role, description });
+      await register({ email, password, full_name: name, role, assigned_role: description });
       navigate('/'); // Redirect to home or dashboard after successful registration
     } catch (err) {
       setError('Đăng ký thất bại. Vui lòng thử lại.');

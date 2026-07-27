@@ -3,10 +3,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import dayjs from 'dayjs';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { X, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useTrip } from '../context/TripContext';
+
+dayjs.extend(isSameOrBefore);
 
 const eventSchema = z.object({
   title: z.string().min(1, 'Tiêu đề là bắt buộc'),
@@ -59,7 +62,7 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
   useEffect(() => {
     const fetchProfiles = async () => {
       setLoadingProfiles(true);
-      const { data, error } = await supabase.from('profiles').select('id, name');
+      const { data, error } = await supabase.from('profiles').select('id, full_name');
       if (error) {
         console.error('Error fetching profiles:', error.message);
       } else {
@@ -72,11 +75,22 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
 
   useEffect(() => {
     if (eventToEdit) {
+      const rawStartTime = eventToEdit.start_time;
+      const rawEndTime = eventToEdit.end_time;
+
+      const initialStartTime = dayjs(rawStartTime).isValid() ? dayjs(rawStartTime) : dayjs();
+      const initialEndTime = dayjs(rawEndTime).isValid() ? dayjs(rawEndTime) : initialStartTime.add(1, 'hour');
+
+      // Ensure end_time is always after start_time
+      if (initialEndTime.isSameOrBefore(initialStartTime)) {
+        initialEndTime = initialStartTime.add(1, 'minute'); // Default to 1 minute after start
+      }
+
       reset({
         title: eventToEdit.title,
         description: eventToEdit.description || '',
-        start_time: dayjs(eventToEdit.start_time).format('YYYY-MM-DDTHH:mm'),
-        end_time: dayjs(eventToEdit.end_time).format('YYYY-MM-DDTHH:mm'),
+        start_time: initialStartTime.format('YYYY-MM-DDTHH:mm'),
+        end_time: initialEndTime.format('YYYY-MM-DDTHH:mm'),
         location: eventToEdit.location || '',
         category: eventToEdit.category,
         assigned_members: eventToEdit.assigned_members ? eventToEdit.assigned_members.map(m => m.id) : [],
@@ -88,15 +102,32 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
     }
   }, [eventToEdit, reset]);
 
-  const checkTimeOverlap = (newStartTime, newEndTime, currentEventId = null) => {
+  const checkTimeOverlap = async (newStartTime, newEndTime, currentEventId = null) => {
     const newStart = dayjs(newStartTime);
     const newEnd = dayjs(newEndTime);
 
-    for (const event of tripEvents) {
-      if (event.id === currentEventId) continue; // Skip the event being edited
+    const { data: allEvents, error } = await supabase
+      .from('events')
+      .select('id, start_time, end_time');
+
+    if (error) {
+      console.error('Error fetching all events for overlap check:', error.message);
+      return false;
+    }
+
+    for (const event of allEvents) {
+      if (event.id === currentEventId) {
+        continue; // Skip the event being edited
+      }
 
       const existingStart = dayjs(event.start_time);
       const existingEnd = dayjs(event.end_time);
+
+      // Ensure existingStart and existingEnd are valid Day.js objects
+      if (!existingStart.isValid() || !existingEnd.isValid()) {
+        console.warn(`Skipping overlap check for event ${event.id} due to invalid dates: start=${event.start_time}, end=${event.end_time}`);
+        continue;
+      }
 
       // Check for overlap: (start1 < end2) && (end1 > start2)
       if (newStart.isBefore(existingEnd) && newEnd.isAfter(existingStart)) {
@@ -110,7 +141,7 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
     setIsSubmitting(true);
     try {
       // Check for time overlap
-      if (checkTimeOverlap(formData.start_time, formData.end_time, eventToEdit?.id)) {
+      if (await checkTimeOverlap(formData.start_time, formData.end_time, eventToEdit?.id)) {
         alert('Lỗi: Thời gian sự kiện bị trùng với một sự kiện khác.');
         setIsSubmitting(false);
         return;
@@ -127,8 +158,8 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
         cost: formData.cost,
         payer_id: formData.payer_id || null,
         created_by: currentUser.id,
-        is_approved: currentUser.role === 'LEAD', // Lead auto-approves
-        status: currentUser.role === 'LEAD' ? 'Sắp tới' : 'Chờ duyệt', // Set initial status
+        approval_status: currentUser.role === 'LEAD' ? 'APPROVED' : 'PENDING', // Lead auto-approves
+        status: 'UPCOMING', // All new events start as UPCOMING, regardless of approval status
       };
 
       let data, error;
@@ -266,7 +297,7 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500 h-24"
               >
                 {profiles.map(profile => (
-                  <option key={profile.id} value={profile.id}>{profile.name}</option>
+                  <option key={profile.id} value={profile.id}>{profile.full_name}</option>
                 ))}
               </select>
             )}
@@ -296,9 +327,9 @@ const EventFormModal = ({ isOpen, onClose, eventToEdit, onSave }) => {
                 >
                   <option value="">Chọn người trả</option>
                   {profiles.map(profile => (
-                    <option key={profile.id} value={profile.id}>{profile.name}</option>
-                  ))}
-                </select>
+                  <option key={profile.id} value={profile.id}>{profile.full_name}</option>
+                ))}
+              </select>
               )}
               {errors.payer_id && <p className="mt-1 text-sm text-red-600">{errors.payer_id.message}</p>}
             </div>

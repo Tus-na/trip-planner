@@ -9,6 +9,7 @@ import MemberManagementModal from '../components/MemberManagementModal'; // Impo
 import { useAuth } from '../context/AuthContext';
 import { useTrip } from '../context/TripContext';
 import { supabase } from '../lib/supabaseClient';
+import { useToast } from '../context/ToastContext'; // Import useToast
 
 // Helper object to map English status to Vietnamese and vice-versa
 const STATUS_MAP = {
@@ -35,6 +36,7 @@ const mapVietnameseToEnglish = (vietnameseStatus) => {
 const EventsPage = () => {
   const { currentUser, loading: authLoading } = useAuth(); // Use currentUser and authLoading
   const { tripEvents, setTripEvents } = useTrip();
+  const { showToast } = useToast(); // Use the toast context
   const [isEventFormModalOpen, setIsEventFormModalOpen] = useState(false); // Renamed for clarity
   const [isPendingEventsModalOpen, setIsPendingEventsModalOpen] = useState(false); // State for pending events modal
   const [isMemberManagementModalOpen, setIsMemberManagementModalOpen] = useState(false); // State for member management modal
@@ -42,6 +44,8 @@ const EventsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pendingEventsCount, setPendingEventsCount] = useState(0); // State to hold pending events count
+  const [isReordering, setIsReordering] = useState(false); // New state for reordering mode
+  const [originalTripEvents, setOriginalTripEvents] = useState([]); // To store events before reordering
 
   const fetchEvents = async () => {
     try {
@@ -175,7 +179,15 @@ const EventsPage = () => {
   };
 
   const handleDeleteEvent = async (eventId) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa sự kiện này?")) return;
+    // Using a toast for confirmation is not ideal, a modal would be better.
+    // For now, we'll proceed with deletion directly or implement a simple confirmation toast.
+    // For this task, we'll assume direct deletion for simplicity or add a basic confirmation.
+    // A proper confirmation modal would be a separate component.
+
+    // For now, let's use a simple confirmation.
+    if (!window.confirm("Bạn có chắc chắn muốn xóa sự kiện này?")) {
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -185,23 +197,32 @@ const EventsPage = () => {
 
       if (error) throw error;
       setTripEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
-      alert("Sự kiện đã được xóa thành công!");
+      showToast("Sự kiện đã được xóa thành công!", "success");
     } catch (err) {
       console.error("Error deleting event:", err.message);
-      alert("Không thể xóa sự kiện: " + err.message);
+      showToast("Không thể xóa sự kiện: " + err.message, "error");
     }
   };
 
-  const onDragEnd = async (result) => {
+  const onDragEnd = (result) => {
     if (!result.destination) return;
-    const items = Array.from(tripEvents);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 1, reorderedItem);
+    const { source, destination } = result;
 
-    setTripEvents(items);
+    // If dropped outside the list
+    if (destination.droppableId !== source.droppableId) {
+      return;
+    }
 
-    // Update order_index in DB
-    const updates = items.map((event, index) => ({
+    const newTripEvents = Array.from(tripEvents);
+    const [reorderedItem] = newTripEvents.splice(source.index, 1);
+    newTripEvents.splice(destination.index, 0, reorderedItem); // Corrected: use 0 for insertion
+
+    setTripEvents(newTripEvents);
+    // The actual DB update will happen when "Lưu" is clicked
+  };
+
+  const handleSaveReorder = async () => {
+    const updates = tripEvents.map((event, index) => ({
       id: event.id,
       order_index: index
     }));
@@ -213,10 +234,20 @@ const EventsPage = () => {
           .update({ order_index: update.order_index })
           .eq('id', update.id);
       }
+      showToast("Thứ tự sự kiện đã được lưu thành công!", "success");
+      setIsReordering(false);
     } catch (err) {
-      console.error("Error updating order:", err);
-      fetchEvents(); // Revert on error
+      console.error("Error saving reorder:", err);
+      showToast("Không thể lưu thứ tự sự kiện.", "error");
+      // Revert to original order on error
+      setTripEvents(originalTripEvents);
+      setIsReordering(false);
     }
+  };
+
+  const handleCancelReorder = () => {
+    setTripEvents(originalTripEvents); // Revert to the order before reordering started
+    setIsReordering(false);
   };
 
   const canEditOrDelete = (event) => {
@@ -282,13 +313,41 @@ const EventsPage = () => {
               </button>
             </>
           )}
-          <button
-            onClick={handleAddEvent}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-200"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Thêm Event
-          </button>
+          {isReordering ? (
+            <>
+              <button
+                onClick={handleSaveReorder}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 transition-colors duration-200"
+              >
+                Lưu
+              </button>
+              <button
+                onClick={handleCancelReorder}
+                className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition-colors duration-200"
+              >
+                Hủy
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  setIsReordering(true);
+                  setOriginalTripEvents(tripEvents); // Save current order
+                }}
+                className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg shadow-md hover:bg-gray-700 transition-colors duration-200"
+              >
+                Sắp xếp
+              </button>
+              <button
+                onClick={handleAddEvent}
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-200"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Thêm Event
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -300,7 +359,7 @@ const EventsPage = () => {
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="events">
             {(provided) => (
-              <div {...provided.droppableProps} ref={provided.innerRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4"> {/* Changed to single column layout */}
                 {tripEvents.map((event, index) => (
                   <Draggable key={event.id} draggableId={event.id.toString()} index={index}>
                     {(provided) => (
@@ -310,6 +369,7 @@ const EventsPage = () => {
                           onEdit={handleEditEvent}
                           onDelete={handleDeleteEvent}
                           canModify={canEditOrDelete(event)}
+                          isReordering={isReordering} // Pass isReordering prop
                         />
                       </div>
                     )}

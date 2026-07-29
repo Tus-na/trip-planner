@@ -1,11 +1,11 @@
 import React from 'react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc'; // Import UTC plugin
-import { MapPin, Calendar, Tag, DollarSign, Users, Edit, Trash2 } from 'lucide-react';
+import { MapPin, Calendar, Tag, DollarSign, Users, Edit, Trash2, GripVertical } from 'lucide-react'; // Import GripVertical
 
 dayjs.extend(utc); // Extend dayjs with UTC plugin
 
-const EventCard = ({ event, onEdit, onDelete, canModify }) => {
+const EventCard = ({ event, onEdit, onDelete, canModify, isReordering }) => { // Add isReordering prop
   const getStatusBadgeClass = (status) => {
     switch (status) {
       case 'Sắp tới':
@@ -27,56 +27,63 @@ const EventCard = ({ event, onEdit, onDelete, canModify }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 flex flex-col justify-between border border-gray-200">
-      <div>
-        <div className="flex justify-between items-start mb-3">
-          <h3 className="text-xl font-semibold text-gray-900">{event.title}</h3>
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(event.status)}`}>
-            {event.status}
-          </span>
-        </div>
-        <p className="text-gray-600 mb-4 text-sm">{event.description}</p>
-
-        <div className="space-y-2 text-gray-700 text-sm">
-          <div className="flex items-center">
-            <Calendar className="w-4 h-4 mr-2 text-gray-500" />
-            <span>
-              {dayjs.utc(event.start_time).local().format('HH:mm DD/MM/YYYY')} - {dayjs.utc(event.end_time).local().format('HH:mm DD/MM/YYYY')}
+      <div className="flex items-center"> {/* New wrapper for drag handle and content */}
+        {isReordering && (
+          <div className="mr-4 cursor-grab text-gray-400 hover:text-gray-600">
+            <GripVertical className="w-6 h-6" />
+          </div>
+        )}
+        <div className="flex-grow"> {/* Content of the card */}
+          <div className="flex justify-between items-start mb-3">
+            <h3 className="text-xl font-semibold text-gray-900">{event.title}</h3>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(event.status)}`}>
+              {event.status}
             </span>
           </div>
-          {event.location && (
+          <p className="text-gray-600 mb-4 text-sm">{event.description}</p>
+
+          <div className="space-y-2 text-gray-700 text-sm">
             <div className="flex items-center">
-              <MapPin className="w-4 h-4 mr-2 text-gray-500" />
-              <span>{event.location}</span>
+              <Calendar className="w-4 h-4 mr-2 text-gray-500" />
+              <span>
+                {dayjs.utc(event.start_time).local().format('HH:mm DD/MM/YYYY')} - {dayjs.utc(event.end_time).local().format('HH:mm DD/MM/YYYY')}
+              </span>
             </div>
-          )}
-          {event.category && (
-            <div className="flex items-center">
-              <Tag className="w-4 h-4 mr-2 text-gray-500" />
-              <span>{event.category}</span>
-            </div>
-          )}
-          {event.cost > 0 && (
-            <div className="flex items-center">
-              <DollarSign className="w-4 h-4 mr-2 text-gray-500" />
-              <span>Chi phí: {event.cost.toLocaleString('vi-VN')} VNĐ</span>
-            </div>
-          )}
-          {event.payer && (
-            <div className="flex items-center">
-              <Users className="w-4 h-4 mr-2 text-gray-500" />
-              <span>Người trả: {event.payer.name}</span>
-            </div>
-          )}
-          {event.assigned_members && event.assigned_members.length > 0 && (
-            <div className="flex items-center">
-              <Users className="w-4 h-4 mr-2 text-gray-500" />
-              <span>Tham gia: {event.assigned_members.map(member => member.name).join(', ')}</span>
-            </div>
-          )}
+            {event.location && (
+              <div className="flex items-center">
+                <MapPin className="w-4 h-4 mr-2 text-gray-500" />
+                <span>{event.location}</span>
+              </div>
+            )}
+            {event.category && (
+              <div className="flex items-center">
+                <Tag className="w-4 h-4 mr-2 text-gray-500" />
+                <span>{event.category}</span>
+              </div>
+            )}
+            {event.cost > 0 && (
+              <div className="flex items-center">
+                <DollarSign className="w-4 h-4 mr-2 text-gray-500" />
+                <span>Chi phí: {event.cost.toLocaleString('vi-VN')} VNĐ</span>
+              </div>
+            )}
+            {event.payer && (
+              <div className="flex items-center">
+                <Users className="w-4 h-4 mr-2 text-gray-500" />
+                <span>Người trả: {event.payer.full_name}</span>
+              </div>
+            )}
+            {event.assigned_members && event.assigned_members.length > 0 && (
+              <div className="flex items-center">
+                <Users className="w-4 h-4 mr-2 text-gray-500" />
+                <span>Tham gia: {event.assigned_members.map(member => member.full_name).join(', ')}</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {canModify && (
+      {canModify && !isReordering && ( // Hide edit/delete buttons during reordering
         <div className="flex justify-end mt-4 space-x-2">
           <button
             onClick={() => onEdit(event)}

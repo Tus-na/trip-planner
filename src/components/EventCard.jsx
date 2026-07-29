@@ -1,11 +1,11 @@
 import React from 'react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc'; // Import UTC plugin
-import { MapPin, Calendar, Tag, DollarSign, Users, Edit, Trash2, GripVertical } from 'lucide-react'; // Import GripVertical
+import { MapPin, Calendar, Tag, DollarSign, Users, Edit, Trash2, GripVertical, Ban, Clock } from 'lucide-react'; // Import GripVertical, Ban, Clock
 
 dayjs.extend(utc); // Extend dayjs with UTC plugin
 
-const EventCard = ({ event, onEdit, onDelete, canModify, isReordering }) => { // Add isReordering prop
+const EventCard = ({ event, onEdit, onDelete, onCancel, onDelay, canModify, isReordering }) => { // Add isReordering, onCancel, onDelay prop
   const getStatusBadgeClass = (status) => {
     switch (status) {
       case 'Sắp tới':
@@ -85,6 +85,24 @@ const EventCard = ({ event, onEdit, onDelete, canModify, isReordering }) => { //
 
       {canModify && !isReordering && ( // Hide edit/delete buttons during reordering
         <div className="flex justify-end mt-4 space-x-2">
+          {event.status !== 'Hủy' && ( // Only show Cancel button if not already cancelled
+            <button
+              onClick={() => onCancel(event.id)}
+              className="p-2 rounded-full hover:bg-red-100 text-red-600 transition-colors duration-200"
+              title="Hủy sự kiện"
+            >
+              <Ban className="w-5 h-5" />
+            </button>
+          )}
+          {event.status !== 'Tạm hoãn' && ( // Only show Delay button if not already delayed
+            <button
+              onClick={() => onDelay(event.id)}
+              className="p-2 rounded-full hover:bg-yellow-100 text-yellow-600 transition-colors duration-200"
+              title="Tạm hoãn sự kiện"
+            >
+              <Clock className="w-5 h-5" />
+            </button>
+          )}
           <button
             onClick={() => onEdit(event)}
             className="p-2 rounded-full hover:bg-blue-100 text-blue-600 transition-colors duration-200"

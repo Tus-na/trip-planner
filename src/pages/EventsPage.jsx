@@ -57,7 +57,7 @@ const EventsPage = () => {
           profiles!events_created_by_fkey(id, full_name, role),
           payer:profiles!events_payer_id_fkey(id, full_name)
         `)
-        .eq('approval_status', 'APPROVED')
+        .in('approval_status', ['APPROVED', 'DELAYED', 'CANCELLED']) // Include DELAYED and CANCELLED events
         .order('order_index', { ascending: true });
 
           if (error) throw error;
@@ -250,6 +250,42 @@ const EventsPage = () => {
     setIsReordering(false);
   };
 
+  const handleCancelEvent = async (eventId) => {
+    if (!window.confirm("Bạn có chắc chắn muốn hủy sự kiện này?")) return;
+    try {
+      const { error } = await supabase
+        .from('events')
+        .update({ status: 'CANCELLED' })
+        .eq('id', eventId);
+      if (error) throw error;
+      setTripEvents(prevEvents => prevEvents.map(event =>
+        event.id === eventId ? { ...event, status: mapEnglishToVietnamese('CANCELLED') } : event
+      ));
+      showToast("Sự kiện đã được hủy thành công!", "success");
+    } catch (err) {
+      console.error("Error cancelling event:", err.message);
+      showToast("Không thể hủy sự kiện: " + err.message, "error");
+    }
+  };
+
+  const handleDelayEvent = async (eventId) => {
+    if (!window.confirm("Bạn có chắc chắn muốn tạm hoãn sự kiện này?")) return;
+    try {
+      const { error } = await supabase
+        .from('events')
+        .update({ status: 'DELAYED' })
+        .eq('id', eventId);
+      if (error) throw error;
+      setTripEvents(prevEvents => prevEvents.map(event =>
+        event.id === eventId ? { ...event, status: mapEnglishToVietnamese('DELAYED') } : event
+      ));
+      showToast("Sự kiện đã được tạm hoãn thành công!", "success");
+    } catch (err) {
+      console.error("Error delaying event:", err.message);
+      showToast("Không thể tạm hoãn sự kiện: " + err.message, "error");
+    }
+  };
+
   const canEditOrDelete = (event) => {
     if (!currentUser) return false;
     // Lead has full control
@@ -368,6 +404,8 @@ const EventsPage = () => {
                           event={event}
                           onEdit={handleEditEvent}
                           onDelete={handleDeleteEvent}
+                          onCancel={handleCancelEvent}
+                          onDelay={handleDelayEvent}
                           canModify={canEditOrDelete(event)}
                           isReordering={isReordering} // Pass isReordering prop
                         />

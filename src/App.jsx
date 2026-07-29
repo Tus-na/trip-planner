@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import EventsPage from './pages/EventsPage'; // Import EventsPage
+import MembersPage from './pages/MembersPage'; // Import MembersPage
 
 const App = () => {
   const { currentUser, loading, logout } = useAuth();
@@ -24,6 +25,7 @@ const App = () => {
           <>
             <Route path="/" element={<Navigate to="/events" />} /> {/* Redirect root to events */}
             <Route path="/events" element={<EventsPage />} /> {/* Events page */}
+            <Route path="/members" element={<MembersPage />} /> {/* Members page */}
             <Route path="/login" element={<Navigate to="/events" />} />
             <Route path="/register" element={<Navigate to="/events" />} />
           </>

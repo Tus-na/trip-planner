@@ -5,8 +5,9 @@ import dayjs from 'dayjs';
 import EventCard from '../components/EventCard';
 import EventFormModal from '../components/EventFormModal';
 import PendingEventsModal from '../components/PendingEventsModal'; // Import PendingEventsModal
-import MemberManagementModal from '../components/MemberManagementModal'; // Import MemberManagementModal
+// import MemberManagementModal from '../components/MemberManagementModal'; // MemberManagementModal is now a dedicated page
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import { useTrip } from '../context/TripContext';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../context/ToastContext'; // Import useToast
@@ -38,8 +39,9 @@ const EventsPage = () => {
   const { tripEvents, setTripEvents } = useTrip();
   const { showToast } = useToast(); // Use the toast context
   const [isEventFormModalOpen, setIsEventFormModalOpen] = useState(false); // Renamed for clarity
+  const navigate = useNavigate(); // Initialize useNavigate
   const [isPendingEventsModalOpen, setIsPendingEventsModalOpen] = useState(false); // State for pending events modal
-  const [isMemberManagementModalOpen, setIsMemberManagementModalOpen] = useState(false); // State for member management modal
+  // const [isMemberManagementModalOpen, setIsMemberManagementModalOpen] = useState(false); // MemberManagementModal is now a dedicated page
   const [editingEvent, setEditingEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -329,7 +331,7 @@ const EventsPage = () => {
           {currentUser?.role === 'LEAD' && (
             <>
               <button
-                onClick={() => setIsMemberManagementModalOpen(true)}
+                onClick={() => navigate('/members')} // Navigate to MembersPage
                 className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg shadow-md hover:bg-purple-700 transition-colors duration-200"
               >
                 <User className="w-5 h-5 mr-2" />
@@ -458,12 +460,7 @@ const EventsPage = () => {
         />
       )}
 
-      {currentUser?.role === 'LEAD' && isMemberManagementModalOpen && (
-        <MemberManagementModal
-          isOpen={isMemberManagementModalOpen}
-          onClose={() => setIsMemberManagementModalOpen(false)}
-        />
-      )}
+      {/* MemberManagementModal is now a dedicated page, so it's removed from here */}
     </div>
   );
 };

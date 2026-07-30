@@ -51,7 +51,7 @@ Dự án sử dụng Supabase làm backend. Bạn cần thiết lập một dự
 
 Tạo một file `.env` ở thư mục gốc của dự án với nội dung sau:
 
-```
+```.env
 VITE_SUPABASE_URL="YOUR_SUPABASE_PROJECT_URL"
 VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_PUBLIC_KEY"
 ```
@@ -60,13 +60,9 @@ Thay thế `"YOUR_SUPABASE_PROJECT_URL"` và `"YOUR_SUPABASE_ANON_PUBLIC_KEY"` b
 
 #### 4.3. Thiết lập Database Schema
 
-Bạn có thể sử dụng các file SQL trong thư mục gốc của dự án để thiết lập schema cho Supabase:
+Bạn có thể sử dụng file `supabase/schema.sql` để thiết lập schema cho Supabase. File này chứa định nghĩa cho các bảng `profiles` và `events` cùng với các ràng buộc và view cần thiết.
 
-- `supabase_setup.sql`: Chứa các bảng cơ bản như `profiles` và `events`.
-- `frontend_compatible_schema.sql`: Schema tương thích với frontend.
-- `update_events_and_drop_users.sql`: Các script cập nhật hoặc xóa dữ liệu (sử dụng cẩn thận).
-
-Bạn có thể chạy các script này trực tiếp trong SQL Editor của Supabase.
+Bạn có thể chạy script này trực tiếp trong SQL Editor của Supabase hoặc thông qua Supabase CLI.
 
 **Lưu ý cấu trúc DB mới nhất:**
 App thiết kế theo dạng Single Trip (Chỉ có 1 chuyến đi). Thông tin người dùng và phân quyền nằm trực tiếp ở bảng `profiles` với các cột: `id`, `full_name`, `avatar_url`, `role` ('LEAD' hoặc 'MEMBER'), và `assigned_role` (Mô tả công việc).

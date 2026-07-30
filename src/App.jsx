@@ -5,9 +5,12 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import EventsPage from './pages/EventsPage'; // Import EventsPage
 import MembersPage from './pages/MembersPage'; // Import MembersPage
+import ExpensesPage from './pages/ExpensesPage'; // Import ExpensesPage
+import DashboardPage from './pages/DashboardPage'; // Import DashboardPage
+import Navbar from './components/Navbar'; // Import Navbar
 
 const App = () => {
-  const { currentUser, loading, logout } = useAuth();
+  const { currentUser, loading } = useAuth(); // Removed logout as it's now in Navbar
 
   if (loading) {
     return (
@@ -20,12 +23,15 @@ const App = () => {
 
   return (
     <div className="App">
+      {currentUser && <Navbar />} {/* Show Navbar only if logged in */}
       <Routes>
         {currentUser ? (
           <>
             <Route path="/" element={<Navigate to="/events" />} /> {/* Redirect root to events */}
             <Route path="/events" element={<EventsPage />} /> {/* Events page */}
             <Route path="/members" element={<MembersPage />} /> {/* Members page */}
+            <Route path="/expenses" element={<ExpensesPage />} /> {/* Expenses page */}
+            <Route path="/dashboard" element={<DashboardPage />} /> {/* Dashboard page */}
             <Route path="/login" element={<Navigate to="/events" />} />
             <Route path="/register" element={<Navigate to="/events" />} />
           </>
